@@ -119,7 +119,7 @@ void thread_start(void)
   /* Wait for the idle thread to initialize idle_thread. */
   sema_down(&idle_started);
 }
-
+/*---------------------------------------------------------------------------------*/
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
 void thread_tick(void)
@@ -165,15 +165,33 @@ zero REMAINING TIME TO WAKE UP, wake up these threads. */
     }
   }
 }
+bool compare_threads_by_priority(const struct list_elem *a,
+                                 const struct list_elem *b,
+                                 void *aux UNUSED)
+{
+  return list_entry(a, struct thread, elem)->priority <= list_entry(b, struct thread, elem)->priority;
+}
+
+// void thread_sleep_rearrange(struct thread *t)
+// {
+//   ASSERT(t->status == THREAD_BLOCKED);
+
+//   enum intr_level old_level = intr_disable();
+//   list_remove(&t->elem);
+//   list_insert_ordered(&sleeping_list, &t->elem, compare_threads_by_priority, NULL);
+//   intr_set_level(old_level);
+// }
 
 void thread_set_sleeping(int64_t ticks)
 {
   struct thread *cur = thread_current();
   cur->remaining_time_to_wake_up = ticks;
-  list_push_back(&sleeping_list, &cur->sleepelem);
+  //list_push_back(&sleeping_list, &cur->sleepelem);
+  list_insert_ordered(&sleeping_list, &cur->sleepelem, compare_threads_by_priority, NULL);
+  //thread_sleep_rearrange(cur);
   thread_block();
 }
-
+/*---------------------------------------------------------------------------------------*/
 /* Prints thread statistics. */
 void thread_print_stats(void)
 {
