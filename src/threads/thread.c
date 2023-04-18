@@ -125,7 +125,9 @@ bool compare_threads_by_priority(const struct list_elem *a,
                                  const struct list_elem *b,
                                  void *aux UNUSED)
 {
-  return list_entry(a, struct thread, elem)->priority <= list_entry(b, struct thread, elem)->priority;
+  struct thread *thread_a = list_entry(a, struct thread, sleepelem);
+  struct thread *thread_b = list_entry(b, struct thread, sleepelem);
+  return thread_a->priority > thread_b->priority;
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -168,7 +170,7 @@ void thread_tick(void)
       if (t->remaining_time_to_wake_up <= 0)
       {
         thread_unblock(t);
-        list_remove(temp);
+        temp=list_remove(temp);
       }
     }
   }

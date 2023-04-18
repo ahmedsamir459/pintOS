@@ -143,7 +143,6 @@ int thread_get_load_avg(void);
 
 void thread_foreach(thread_action_func *, void *);
 void thread_set_sleeping(int64_t);
-void thread_sleep_rearrange (struct thread *t);
 bool compare_threads_by_priority (const struct list_elem *a,const struct list_elem *b,void *aux UNUSED);
 
 #endif /* threads/thread.h */
