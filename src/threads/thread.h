@@ -83,16 +83,19 @@ typedef int tid_t;
 struct thread
 {
    /* Owned by thread.c. */
-   tid_t tid;                 /* Thread identifier. */
-   enum thread_status status; /* Thread state. */
-   char name[16];             /* Name (for debugging purposes). */
-   uint8_t *stack;            /* Saved stack pointer. */
-   int priority;              /* Priority. */
-   struct list_elem allelem;  /* List element for all threads list. */
-
+   tid_t tid;                         /* Thread identifier. */
+   enum thread_status status;         /* Thread state. */
+   char name[16];                     /* Name (for debugging purposes). */
+   uint8_t *stack;                    /* Saved stack pointer. */
+   int priority;                      /* Priority. */
+   struct list_elem allelem;          /* List element for all threads list. */
+                                      /*------------------------------------------------------------------------------*/
    struct list_elem sleepelem;        /* List element for sleeping threads. */
    int64_t remaining_time_to_wake_up; /* Ticks remaining from waking up. */
-
+   int real_priority;
+   struct list locks_held;
+   struct lock *current_lock;
+   /*--------------------------------------------------------------------------------*/
    /* Shared between thread.c and synch.c. */
    struct list_elem elem; /* List element. */
 
@@ -143,6 +146,10 @@ int thread_get_load_avg(void);
 
 void thread_foreach(thread_action_func *, void *);
 void thread_set_sleeping(int64_t);
-bool compare_threads_by_priority (const struct list_elem *a,const struct list_elem *b,void *aux UNUSED);
+bool compare_threads_by_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+bool compare_threads_by_priority_sleeping(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+void thread_update_priority(struct thread *);
+void thread_ready_rearrange(struct thread *);
+void try_thread_yield(void);
 
 #endif /* threads/thread.h */

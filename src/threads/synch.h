@@ -22,6 +22,10 @@ struct lock
 {
   struct thread *holder;      /* Thread holding lock (for debugging). */
   struct semaphore semaphore; /* Binary semaphore controlling access. */
+  /*-----------------------------------------------------------------------*/
+  struct list_elem elem;
+  int max_priority;
+  /*-----------------------------------------------------------------------*/
 };
 
 void lock_init(struct lock *);
@@ -50,5 +54,9 @@ void cond_broadcast(struct condition *, struct lock *);
                                :  \
                                :  \
                                : "memory")
+
+bool compare_locks_by_priority(const struct list_elem *, const struct list_elem *, void *);
+
+bool compare_semaphore_elem_by_priority(const struct list_elem *, const struct list_elem *, void *);
 
 #endif /* threads/synch.h */

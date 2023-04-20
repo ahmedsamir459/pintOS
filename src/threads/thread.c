@@ -125,6 +125,15 @@ bool compare_threads_by_priority(const struct list_elem *a,
                                  const struct list_elem *b,
                                  void *aux UNUSED)
 {
+  struct thread *thread_a = list_entry(a, struct thread, elem);
+  struct thread *thread_b = list_entry(b, struct thread, elem);
+  return thread_a->priority > thread_b->priority;
+}
+
+bool compare_threads_by_priority_sleeping(const struct list_elem *a,
+                                          const struct list_elem *b,
+                                          void *aux UNUSED)
+{
   struct thread *thread_a = list_entry(a, struct thread, sleepelem);
   struct thread *thread_b = list_entry(b, struct thread, sleepelem);
   return thread_a->priority > thread_b->priority;
@@ -170,7 +179,7 @@ void thread_tick(void)
       if (t->remaining_time_to_wake_up <= 0)
       {
         thread_unblock(t);
-        temp=list_remove(temp);
+        temp = list_remove(temp);
       }
     }
   }
@@ -180,12 +189,21 @@ void thread_set_sleeping(int64_t ticks)
 {
   struct thread *cur = thread_current();
   cur->remaining_time_to_wake_up = ticks;
-  // list_push_back(&sleeping_list, &cur->sleepelem);
-
   enum intr_level old_level = intr_disable();
-  list_insert_ordered(&sleeping_list, &cur->sleepelem, compare_threads_by_priority, NULL);
+  list_insert_ordered(&sleeping_list, &cur->sleepelem, compare_threads_by_priority_sleeping, NULL);
   intr_set_level(old_level);
   thread_block();
+}
+
+void try_thread_yield(void)
+{
+  enum intr_level old_level = intr_disable();
+  bool result = !list_empty(&ready_list) &&
+                list_entry(list_back(&ready_list), struct thread, elem)->priority >
+                    thread_get_priority();
+  intr_set_level(old_level);
+  if (result)
+    thread_yield();
 }
 
 /*---------------------------------------------------------------------------------------*/
@@ -249,6 +267,7 @@ tid_t thread_create(const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock(t);
+  try_thread_yield();
 
   return tid;
 }
@@ -284,7 +303,7 @@ void thread_unblock(struct thread *t)
 
   old_level = intr_disable();
   ASSERT(t->status == THREAD_BLOCKED);
-  list_push_back(&ready_list, &t->elem);
+  list_insert_ordered(&ready_list, &t->elem, compare_threads_by_priority, NULL);
   t->status = THREAD_READY;
   intr_set_level(old_level);
 }
@@ -352,7 +371,9 @@ void thread_yield(void)
 
   old_level = intr_disable();
   if (cur != idle_thread)
-    list_push_back(&ready_list, &cur->elem);
+  {
+    list_insert_ordered(&ready_list, &cur->elem, compare_threads_by_priority, NULL);
+  }
   cur->status = THREAD_READY;
   schedule();
   intr_set_level(old_level);
@@ -377,7 +398,14 @@ void thread_foreach(thread_action_func *func, void *aux)
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void thread_set_priority(int new_priority)
 {
-  thread_current()->priority = new_priority;
+  enum intr_level old_level = intr_disable();
+  thread_current()->real_priority = new_priority;
+  thread_update_priority(thread_current());
+  intr_set_level(old_level);
+
+  /* If there are threads with higher priority than the current thread, call
+     THREAD YIELD. */
+  try_thread_yield();
 }
 
 /* Returns the current thread's priority. */
@@ -504,6 +532,10 @@ init_thread(struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *)t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  t->remaining_time_to_wake_up = 0;
+  t->real_priority = priority;
+  t->current_lock = NULL;
+  list_init(&t->locks_held);
 
   old_level = intr_disable();
   list_push_back(&all_list, &t->allelem);
@@ -617,6 +649,16 @@ allocate_tid(void)
   lock_release(&tid_lock);
 
   return tid;
+}
+void thread_ready_rearrange(struct thread *t)
+{
+  ASSERT(t->status == THREAD_READY);
+
+  enum intr_level old_level = intr_disable();
+  list_remove(&t->elem);
+  list_insert_ordered(&ready_list, &t->elem,
+                      compare_threads_by_priority, NULL);
+  intr_set_level(old_level);
 }
 
 /* Offset of `stack' member within `struct thread'.
